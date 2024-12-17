@@ -5,10 +5,14 @@ import java.awt.event.KeyListener;
 
 public class KeyHandler implements KeyListener {
 
-    public boolean leftPressed, rightPressed; // Left & Right Movement
+    public boolean aPressed, dPressed; // Left & Right Movement
     public boolean jumpPressed; // Jumping
     public boolean sprintPressed; // Sprinting
-    public boolean downPressed; // Down (ducking)
+    public boolean sPressed; // Down (ducking)
+    public boolean upPressed, downPressed, leftPressed, rightPressed;
+    // Map
+    public boolean mapPressed = false;
+    public boolean mapToggle = false;
 
     @Override
     public void keyTyped(KeyEvent e) {
@@ -21,10 +25,10 @@ public class KeyHandler implements KeyListener {
 
         // Left & Right Movement
         if(code == KeyEvent.VK_A) {
-            leftPressed = true;
+            aPressed = true;
         }
         if(code == KeyEvent.VK_D) {
-            rightPressed = true;
+            dPressed = true;
         }
 
         // Jumping
@@ -39,7 +43,22 @@ public class KeyHandler implements KeyListener {
 
         // Ducking
         if(code == KeyEvent.VK_S) {
-            downPressed = true;
+            sPressed = true;
+        }
+
+        // Digging
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_UP -> upPressed = true;
+            case KeyEvent.VK_DOWN -> downPressed = true;
+            case KeyEvent.VK_LEFT -> leftPressed = true;
+            case KeyEvent.VK_RIGHT -> rightPressed = true;
+        }
+
+        // Map
+        if (code == KeyEvent.VK_M) {
+            mapToggle = !mapToggle; // Toggle map state
+        } else if (code == KeyEvent.VK_ESCAPE) {
+            mapToggle = false; // Close map on Escape
         }
     }
 
@@ -50,10 +69,10 @@ public class KeyHandler implements KeyListener {
 
         // Left & Right Movement
         if(code == KeyEvent.VK_A) {
-            leftPressed = false;
+            aPressed = false;
         }
         if(code == KeyEvent.VK_D) {
-            rightPressed = false;
+            dPressed = false;
         }
 
         // Jumping
@@ -68,7 +87,15 @@ public class KeyHandler implements KeyListener {
 
         // Ducking
         if(code == KeyEvent.VK_S) {
-            downPressed = false;
+            sPressed = false;
+        }
+
+        // Digging
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_UP -> upPressed = false;
+            case KeyEvent.VK_DOWN -> downPressed = false;
+            case KeyEvent.VK_LEFT -> leftPressed = false;
+            case KeyEvent.VK_RIGHT -> rightPressed = false;
         }
     }
 }

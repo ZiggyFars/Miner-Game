@@ -6,9 +6,10 @@ import java.io.IOException;
 import javax.imageio.ImageIO;
 import master.main.KeyHandler;
 import master.main.MouseHandler;
-import master.map.TileManager;
+import master.world.TileManager;
 import master.main.GamePanel;
 import master.main.Camera;
+import master.sound.SoundManager;
 
 public class Player {
     // -+ Player attributes +-
@@ -16,6 +17,12 @@ public class Player {
     // Coordinates
     public int x; // top-left corner x-coordinate
     public int y; // top-left corner y-coordinate
+    public int getX() {
+        return x;
+    }
+    public int getY() {
+        return y;
+    }
 
     // Dimensions
     private int scale = 2; // Scale factor applied to player
@@ -34,6 +41,11 @@ public class Player {
     private int animationTimer = 0; // Timer for switching frames
     private int animationSpeed = 7; // Base animation speed (lower = faster)
     private float turningSpriteV = 400; // Speed above which turning sprite is shown when turning
+
+    // Direction
+    public boolean isFacingLeft() {
+        return facingLeft;
+    }
 
     // Sub-Pixels
     int subPixels = 256; // Total amount of sub-pixels per pixel
@@ -58,10 +70,9 @@ public class Player {
     public final double maxSpeedS = 768; // Maximum speed (sprinting)
 
     // Physics Parameters (y)
-    private final double jumpReleaseGravity = 37.5; // Acceleration due to gravity (when not holding jump)
-    private final double jumpHoldGravity = 25.0; // Gravity when holding jump
-    private final double terminalVelocityJH = 2000; // Speed at which acceleration due to grav stops (jump held)
-    private final double terminalVelocityJR = 2560; // Speed at which acceleration due to grav stops (jump released)
+    private final double jumpReleaseGravity = 50.25; // Base acceleration due to gravity (when not holding jump)
+    private final double jumpHoldGravity = 35.5; // Base gravity when holding jump
+    private final double gravityDecayFactor = 0.0005; // Controls how quickly gravity decreases
     private final double initialJumpVelocity = 940;
     private boolean isAirborne = true;
     private boolean canJump = true; // Flag to prevent player from jumping again immediately after touching ground,
@@ -111,6 +122,7 @@ public class Player {
         handleJumping(keyH);
         handleDucking(keyH);
         handleMouse(mouseH);
+        handleDigging(tileM, keyH);
         updateAnimation();
     }
 
@@ -119,7 +131,7 @@ public class Player {
         // Apply movement for the left direction
         if (!isCollidingLeft) {
             if (!isDucking || (isAirborne || !isCollidingGround)) { // If not ducking or in the air
-                if (keyH.leftPressed) {
+                if (keyH.aPressed) {
                     // Sprinting logic
                     if (keyH.sprintPressed && !isDucking) {
                         xv -= accelerationS; // Move left (sprinting)
@@ -174,7 +186,7 @@ public class Player {
         // Apply movement for the right direction
         if (!isCollidingRight) {
             if (!isDucking || (isAirborne || !isCollidingGround)) { // If not ducking or in the air
-                if (keyH.rightPressed) {
+                if (keyH.dPressed) {
                     // Sprinting logic
                     if (keyH.sprintPressed && !isDucking) {
                         xv += accelerationS; // Move right (sprinting)
@@ -245,18 +257,18 @@ public class Player {
 
     // Helper function to apply deceleration based on the current velocity direction
     private void applyDeceleration(KeyHandler keyH) {
-        if (xv < 0 && !keyH.leftPressed) { // If moving left
+        if (xv < 0 && !keyH.aPressed) { // If moving left
             xv += currentDecel; // Slow down to the right
             if (xv > 0) xv = 0; // Stop if we decelerate past zero
         }
-        if (xv > 0 && !keyH.rightPressed) { // If moving right
+        if (xv > 0 && !keyH.dPressed) { // If moving right
             xv -= currentDecel; // Slow down to the left
             if (xv < 0) xv = 0; // Stop if we decelerate past zero
         }
     }
 
     private void handleDucking(KeyHandler keyH) {
-        isDucking = keyH.downPressed;
+        isDucking = keyH.sPressed;
         // Set acceleration and max speed if ducking
         if (isDucking) {
             currentAccel = accelerationD;
@@ -265,41 +277,30 @@ public class Player {
     }
 
     private void handleGravity(KeyHandler keyH) {
+        if (!isCollidingGround) { // If player is not on the ground
+            double gravity;
 
-        if (!isCollidingGround) { // If player is not on ground
             if (keyH.jumpPressed) {
-                yv -= jumpHoldGravity; // Apply gravity (slower while holding jump)
+                // Apply inverse exponential gravity when holding jump
+                gravity = jumpHoldGravity * Math.exp(-gravityDecayFactor * Math.abs(yv));
             } else {
-                yv -= jumpReleaseGravity; // Apply gravity (faster while not holding jump)
+                // Apply inverse exponential gravity when not holding jump
+                gravity = jumpReleaseGravity * Math.exp(-gravityDecayFactor * Math.abs(yv));
             }
-        } else { // If player is on ground
-            isAirborne = false;
+
+            yv -= gravity; // Apply gravity to the vertical velocity
+        } else {
+            isAirborne = false; // Reset airborne state when grounded
         }
 
         // Update the player's position using sub-pixels
         subPixelY -= yv;
-        if (subPixelY >= subPixels) { // if exceeding sub-pixel count in the positive (down) direction
-            y += (subPixelY / subPixels); // move proper amount of pixels (down)
-            // reset counter to within bounds
+        if (subPixelY >= subPixels) {
+            y += (subPixelY / subPixels);
             subPixelY = (int) (subPixelY - (subPixels * (Math.floor(subPixelY / subPixels))));
-        }
-        else if (subPixelY <= -subPixels) { // if exceeding sub-pixel count in the negative (up) direction
-            y -= -(subPixelY / subPixels); // move proper amount of pixels (up)
-            // reset counter to within bounds
+        } else if (subPixelY <= -subPixels) {
+            y -= -(subPixelY / subPixels);
             subPixelY = (int) (subPixelY - (subPixels * (Math.floor(subPixelY / subPixels))));
-        }
-
-        // Clamp player Y velocity
-        if (yv < 0) { // If falling
-            if (keyH.jumpPressed) {
-                if (yv < -terminalVelocityJH) {
-                    yv = -terminalVelocityJH;
-                }
-            } else {
-                if (yv < -terminalVelocityJR) {
-                    yv = -terminalVelocityJR;
-                }
-            }
         }
     }
 
@@ -318,6 +319,7 @@ public class Player {
                 yv = initialJumpVelocity + Math.abs(xv * xvInfluence); // Apply jump force
                 isAirborne = true; // Mark as airborne
                 canJump = false; // Disable jumping until the key is released
+                // SoundManager.playSound("jump"); // Play jump sound
             } else { // If grounded and not initiating a jump
                 if (!keyH.jumpPressed) { // Key must be released to allow jumping again
                     canJump = true; // Re-enable jumping after key release
@@ -422,12 +424,44 @@ public class Player {
         }
     }
 
+    private boolean previousLeftClick = false;
+
     private void handleMouse(MouseHandler mouseH) {
-        // Handle left-click to teleport
-        if (mouseH.leftClick) {
+        // Check if the left mouse button was just pressed (transition from false to true)
+        if (mouseH.leftClick && !previousLeftClick) {
             // Teleport the player to mouse X and Y position
             x = mouseH.mouseX;
             y = mouseH.mouseY;
+
+            // Play teleport sound
+            SoundManager.playSound("teleport");
+        }
+
+        // Update the previous state of left click
+        previousLeftClick = mouseH.leftClick;
+    }
+
+    private void handleDigging(TileManager tileManager, KeyHandler keyH) {
+        int digX = Math.floorDiv(x + width / 2, TileManager.TILE_SIZE);
+        int digY = Math.floorDiv(y + height / 2, TileManager.TILE_SIZE);
+
+        // Determine the dig direction
+        if (keyH.upPressed) {
+            digY -= 1; // Tile above
+        } else if (keyH.downPressed) {
+            digY += 1; // Tile below
+        } else if (keyH.leftPressed) {
+            digX -= 1; // Tile to the left
+        } else if (keyH.rightPressed) {
+            digX += 1; // Tile to the right
+        } else {
+            return; // No input for digging
+        }
+
+        // Check if the tile exists and is solid, then "dig" it
+        if (tileManager.isTileSolid(digX, digY)) {
+            tileManager.removeTile(digX, digY); // Remove the tile
+            SoundManager.playSound("dig"); // Optional: Play digging sound
         }
     }
 

@@ -1,7 +1,9 @@
 package master.main;
 
 import master.entity.Player;
-import master.map.TileManager;
+import master.world.TileManager;
+import master.sound.SoundManager;
+import master.world.MapScreen;
 
 import javax.swing.*;
 import java.awt.*;
@@ -19,6 +21,9 @@ public class GamePanel extends JPanel implements Runnable {
     Camera camera = new Camera(screenWidth, screenHeight); // Initialize camera
     KeyHandler keyH = new KeyHandler();
     MouseHandler mouseH = new MouseHandler(camera);
+    private MapScreen mapScreen;
+
+    private boolean mapOpen = false; // Keeps track of if the map is open
 
     // FPS
     int FPS = 120;
@@ -28,6 +33,7 @@ public class GamePanel extends JPanel implements Runnable {
 
     public GamePanel() {
         player = new Player(-64, 0); // Initialize player
+        mapScreen = new MapScreen(tileM, player, this); // Initialize the map screen
 
         this.setPreferredSize(new Dimension(screenWidth, screenHeight));
         this.setBackground(Color.black);
@@ -35,6 +41,15 @@ public class GamePanel extends JPanel implements Runnable {
         this.addKeyListener(keyH);
         this.addMouseListener(mouseH);
         this.setFocusable(true);
+
+        // Load sound files
+        SoundManager.loadSound("jump", "/sounds/jump.wav");
+        SoundManager.loadSound("teleport", "/sounds/teleport.wav");
+        SoundManager.loadSound("dig", "/sounds/dig.wav");
+        SoundManager.loadSound("map_open", "/sounds/menu_open.wav");
+        SoundManager.loadSound("map_close", "/sounds/menu_close.wav");
+        // Adjust volume
+        SoundManager.setAllVolumes(-10.0f); // Reduce volume globally
     }
 
     public void startGameThread() {
@@ -75,18 +90,29 @@ public class GamePanel extends JPanel implements Runnable {
     }
 
     public void update() {
-        player.update(tileM, keyH, mouseH); // Update player logic
-        camera.centerOnPlayer(player.x, player.y); // Center the camera on the player's position
-        tileM.update(camera); // Update map
+        if (keyH.mapToggle) {
+            mapScreen.toggleMap();
+            keyH.mapToggle = false; // Reset toggle
+        }
+        if (!mapScreen.isMapOpen()) {
+            // Normal game logic
+            player.update(tileM, keyH, mouseH); // Update player logic
+            camera.centerOnPlayer(player.x, player.y); // Center the camera on the player's position
+            tileM.update(camera); // Update world
+        }
     }
 
     public void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
 
-        tileM.draw(g2, camera); // Draw tiles
-
-        player.draw(g2, keyH, camera); // Draw the player
+        if (mapScreen.isMapOpen()) {
+            mapScreen.draw(g2); // Draw the map
+        } else {
+            // Render game normally
+            tileM.draw(g2, camera); // Draw tiles
+            player.draw(g2, keyH, camera); // Draw the player
+        }
 
         g2.dispose();
     }
